@@ -1,0 +1,16 @@
+# Data and outputs (too large for git, regenerate with the scripts)
+data/raw/*
+data/processed/*
+outputs/**/*
+!**/.gitkeep
+
+# Secrets
+.env
+kaggle.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/

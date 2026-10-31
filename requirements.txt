@@ -1,0 +1,25 @@
+# Data
+pandas
+pyarrow
+numpy
+pyyaml
+kaggle
+
+# Models
+scikit-learn
+xgboost
+lightgbm
+torch
+torch_geometric
+
+# Analysis and plots
+networkx
+matplotlib
+jupyter
+
+# Agent
+anthropic
+python-dotenv
+
+# Tests
+pytest
