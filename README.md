@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # BT4012 Group 2: AML Detection with GNN + Verified LLM Agent
 
 Detect money laundering in the IBM AML HI-Small dataset with a GNN edge classifier,
@@ -52,3 +53,6 @@ python scripts/06_run_agent.py
 - Graph and temporal features use past transactions only (no leakage).
 - `Patterns.txt` and labels are for evaluation only; the agent's tools must not read them.
 - Never commit data, outputs, `.env` or `kaggle.json`.
+=======
+# bt4012-group-2
+>>>>>>> 9f169fbfea1234e1b7ff0179ae60861c466202d9
