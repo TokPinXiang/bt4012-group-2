@@ -1,7 +1,5 @@
-# Data
-pandas
-pyarrow
-numpy
+# Data preparation (validated versions; can be installed on its own)
+-r requirements-data.txt
 pyyaml
 kaggle
 
@@ -14,7 +12,6 @@ torch_geometric
 
 # Analysis and plots
 networkx
-matplotlib
 jupyter
 
 # Agent
