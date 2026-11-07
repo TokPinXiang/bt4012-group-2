@@ -1,0 +1,379 @@
+{
+  "$defs": {
+    "AmountRangeCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "amount_range",
+          "title": "Kind",
+          "type": "string"
+        },
+        "min": {
+          "minimum": 0,
+          "title": "Min",
+          "type": "number"
+        },
+        "max": {
+          "exclusiveMinimum": 0,
+          "title": "Max",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "min",
+        "max"
+      ],
+      "title": "AmountRangeCheck",
+      "type": "object"
+    },
+    "ChainCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "chain",
+          "title": "Kind",
+          "type": "string"
+        },
+        "accounts": {
+          "description": "Route in time order",
+          "items": {
+            "pattern": "^A\\d+$",
+            "type": "string"
+          },
+          "minItems": 2,
+          "title": "Accounts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "accounts"
+      ],
+      "title": "ChainCheck",
+      "type": "object"
+    },
+    "CountCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "count",
+          "title": "Kind",
+          "type": "string"
+        },
+        "n": {
+          "description": "Exact number of cited transactions",
+          "minimum": 1,
+          "title": "N",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "n"
+      ],
+      "title": "CountCheck",
+      "type": "object"
+    },
+    "CycleCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "cycle",
+          "title": "Kind",
+          "type": "string"
+        },
+        "accounts": {
+          "description": "Route in time order; must end where it starts",
+          "items": {
+            "pattern": "^A\\d+$",
+            "type": "string"
+          },
+          "minItems": 3,
+          "title": "Accounts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "accounts"
+      ],
+      "title": "CycleCheck",
+      "type": "object"
+    },
+    "FanInCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "fan_in",
+          "title": "Kind",
+          "type": "string"
+        },
+        "account": {
+          "description": "Receiver of every cited transaction",
+          "pattern": "^A\\d+$",
+          "title": "Account",
+          "type": "string"
+        },
+        "senders": {
+          "description": "Exact number of distinct senders among the cited transactions",
+          "minimum": 1,
+          "title": "Senders",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "account",
+        "senders"
+      ],
+      "title": "FanInCheck",
+      "type": "object"
+    },
+    "FanOutCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "fan_out",
+          "title": "Kind",
+          "type": "string"
+        },
+        "account": {
+          "description": "Sender of every cited transaction",
+          "pattern": "^A\\d+$",
+          "title": "Account",
+          "type": "string"
+        },
+        "recipients": {
+          "description": "Exact number of distinct receivers among the cited transactions",
+          "minimum": 1,
+          "title": "Recipients",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "account",
+        "recipients"
+      ],
+      "title": "FanOutCheck",
+      "type": "object"
+    },
+    "InvolvesCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "involves",
+          "title": "Kind",
+          "type": "string"
+        },
+        "account": {
+          "description": "Every cited transaction has this account as sender or receiver",
+          "pattern": "^A\\d+$",
+          "title": "Account",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "account"
+      ],
+      "title": "InvolvesCheck",
+      "type": "object"
+    },
+    "LLMClaim": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "description": "One factual statement, using aliases like A1 and T4",
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "cited_tx": {
+          "description": "Transactions (T...) the statement is about",
+          "items": {
+            "pattern": "^T\\d+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Cited Tx",
+          "type": "array"
+        },
+        "checks": {
+          "description": "Machine-checkable facts about the cited transactions",
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "amount_range": "#/$defs/AmountRangeCheck",
+                "chain": "#/$defs/ChainCheck",
+                "count": "#/$defs/CountCheck",
+                "cycle": "#/$defs/CycleCheck",
+                "fan_in": "#/$defs/FanInCheck",
+                "fan_out": "#/$defs/FanOutCheck",
+                "involves": "#/$defs/InvolvesCheck",
+                "total": "#/$defs/TotalCheck",
+                "within_hours": "#/$defs/WithinHoursCheck"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/FanOutCheck"
+              },
+              {
+                "$ref": "#/$defs/FanInCheck"
+              },
+              {
+                "$ref": "#/$defs/CycleCheck"
+              },
+              {
+                "$ref": "#/$defs/ChainCheck"
+              },
+              {
+                "$ref": "#/$defs/InvolvesCheck"
+              },
+              {
+                "$ref": "#/$defs/CountCheck"
+              },
+              {
+                "$ref": "#/$defs/TotalCheck"
+              },
+              {
+                "$ref": "#/$defs/AmountRangeCheck"
+              },
+              {
+                "$ref": "#/$defs/WithinHoursCheck"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Checks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "text",
+        "cited_tx",
+        "checks"
+      ],
+      "title": "LLMClaim",
+      "type": "object"
+    },
+    "TotalCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "total",
+          "title": "Kind",
+          "type": "string"
+        },
+        "amount": {
+          "description": "Sum of the cited amounts (1% tolerance)",
+          "exclusiveMinimum": 0,
+          "title": "Amount",
+          "type": "number"
+        },
+        "currency": {
+          "description": "Every cited transaction must be in this currency, e.g. US Dollar",
+          "title": "Currency",
+          "type": "string"
+        },
+        "side": {
+          "default": "paid",
+          "enum": [
+            "paid",
+            "received"
+          ],
+          "title": "Side",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "amount",
+        "currency"
+      ],
+      "title": "TotalCheck",
+      "type": "object"
+    },
+    "WithinHoursCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "within_hours",
+          "title": "Kind",
+          "type": "string"
+        },
+        "hours": {
+          "description": "All cited transactions happen within this many hours of each other",
+          "exclusiveMinimum": 0,
+          "title": "Hours",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "hours"
+      ],
+      "title": "WithinHoursCheck",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The investigator's final answer. Submitted through the submit_case_report tool.",
+  "properties": {
+    "typology": {
+      "enum": [
+        "FAN-OUT",
+        "FAN-IN",
+        "CYCLE",
+        "SCATTER-GATHER",
+        "GATHER-SCATTER",
+        "STACK",
+        "BIPARTITE",
+        "RANDOM",
+        "NONE"
+      ],
+      "title": "Typology",
+      "type": "string"
+    },
+    "suspicious": {
+      "title": "Suspicious",
+      "type": "boolean"
+    },
+    "confidence": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "Confidence",
+      "type": "string"
+    },
+    "summary": {
+      "description": "2-3 sentences for a human investigator, using aliases",
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    },
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/LLMClaim"
+      },
+      "maxItems": 8,
+      "minItems": 1,
+      "title": "Claims",
+      "type": "array"
+    }
+  },
+  "required": [
+    "typology",
+    "suspicious",
+    "confidence",
+    "summary",
+    "claims"
+  ],
+  "title": "LLMNarrative",
+  "type": "object"
+}

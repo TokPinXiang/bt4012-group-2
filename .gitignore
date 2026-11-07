@@ -1,6 +1,7 @@
 # Data and outputs (too large for git, regenerate with the scripts)
 data/raw/*
 data/processed/*
+data/*.csv
 outputs/**/*
 !**/.gitkeep
 

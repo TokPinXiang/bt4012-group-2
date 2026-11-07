@@ -15,7 +15,11 @@ networkx
 jupyter
 
 # Agent
-anthropic
+duckdb
+openai
+langchain-core
+langchain-openai
+pydantic>=2
 python-dotenv
 
 # Tests

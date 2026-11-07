@@ -1,0 +1,53 @@
+{
+  "additionalProperties": false,
+  "description": "One scored transaction in predictions_<model>.csv.",
+  "properties": {
+    "tx_id": {
+      "description": "Min Gu's transaction id, unchanged, e.g. HI-Small:03970858",
+      "pattern": "^HI-Small:\\d{8}$",
+      "title": "Tx Id",
+      "type": "string"
+    },
+    "split": {
+      "enum": [
+        "train",
+        "validation",
+        "test"
+      ],
+      "title": "Split",
+      "type": "string"
+    },
+    "score": {
+      "description": "Probability of laundering; higher = more suspicious",
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Score",
+      "type": "number"
+    },
+    "predicted_label": {
+      "description": "1 if score >= the threshold tuned on validation",
+      "enum": [
+        0,
+        1
+      ],
+      "title": "Predicted Label",
+      "type": "integer"
+    },
+    "model_name": {
+      "maxLength": 40,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_\\-]+$",
+      "title": "Model Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tx_id",
+    "split",
+    "score",
+    "predicted_label",
+    "model_name"
+  ],
+  "title": "PredictionRow",
+  "type": "object"
+}

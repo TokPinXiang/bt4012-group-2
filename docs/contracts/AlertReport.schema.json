@@ -1,0 +1,1349 @@
+{
+  "$defs": {
+    "AccountHistory": {
+      "additionalProperties": false,
+      "properties": {
+        "account_id": {
+          "pattern": "^[0-9]+:[0-9A-F]+$",
+          "title": "Account Id",
+          "type": "string"
+        },
+        "window": {
+          "$ref": "#/$defs/Window"
+        },
+        "first_seen": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "First Seen"
+        },
+        "lifetime_tx_count": {
+          "minimum": 0,
+          "title": "Lifetime Tx Count",
+          "type": "integer"
+        },
+        "outgoing": {
+          "$ref": "#/$defs/Side"
+        },
+        "incoming": {
+          "$ref": "#/$defs/Side"
+        },
+        "window_tx_count": {
+          "minimum": 0,
+          "title": "Window Tx Count",
+          "type": "integer"
+        },
+        "recent_transactions": {
+          "items": {
+            "$ref": "#/$defs/Transaction"
+          },
+          "title": "Recent Transactions",
+          "type": "array"
+        },
+        "recent_transactions_truncated": {
+          "title": "Recent Transactions Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "account_id",
+        "window",
+        "first_seen",
+        "lifetime_tx_count",
+        "outgoing",
+        "incoming",
+        "window_tx_count",
+        "recent_transactions",
+        "recent_transactions_truncated"
+      ],
+      "title": "AccountHistory",
+      "type": "object"
+    },
+    "AccountSignals": {
+      "additionalProperties": false,
+      "properties": {
+        "outgoing_tx": {
+          "title": "Outgoing Tx",
+          "type": "integer"
+        },
+        "incoming_tx": {
+          "title": "Incoming Tx",
+          "type": "integer"
+        },
+        "distinct_recipients": {
+          "title": "Distinct Recipients",
+          "type": "integer"
+        },
+        "distinct_senders": {
+          "title": "Distinct Senders",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "outgoing_tx",
+        "incoming_tx",
+        "distinct_recipients",
+        "distinct_senders"
+      ],
+      "title": "AccountSignals",
+      "type": "object"
+    },
+    "AlertMeta": {
+      "additionalProperties": false,
+      "properties": {
+        "rank": {
+          "minimum": 1,
+          "title": "Rank",
+          "type": "integer"
+        },
+        "tx_id": {
+          "pattern": "^HI-Small:\\d{8}$",
+          "title": "Tx Id",
+          "type": "string"
+        },
+        "score": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Score",
+          "type": "number"
+        },
+        "predicted_label": {
+          "enum": [
+            0,
+            1
+          ],
+          "title": "Predicted Label",
+          "type": "integer"
+        },
+        "model_name": {
+          "title": "Model Name",
+          "type": "string"
+        },
+        "split": {
+          "enum": [
+            "train",
+            "validation",
+            "test"
+          ],
+          "title": "Split",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rank",
+        "tx_id",
+        "score",
+        "predicted_label",
+        "model_name",
+        "split"
+      ],
+      "title": "AlertMeta",
+      "type": "object"
+    },
+    "AmountRangeCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "amount_range",
+          "title": "Kind",
+          "type": "string"
+        },
+        "min": {
+          "minimum": 0,
+          "title": "Min",
+          "type": "number"
+        },
+        "max": {
+          "exclusiveMinimum": 0,
+          "title": "Max",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "min",
+        "max"
+      ],
+      "title": "AmountRangeCheck",
+      "type": "object"
+    },
+    "Attempt": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "verified",
+            "partial",
+            "failed",
+            "invalid"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "claims_passed": {
+          "default": 0,
+          "title": "Claims Passed",
+          "type": "integer"
+        },
+        "claims_total": {
+          "default": 0,
+          "title": "Claims Total",
+          "type": "integer"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "Attempt",
+      "type": "object"
+    },
+    "CaseAliases": {
+      "additionalProperties": false,
+      "properties": {
+        "accounts": {
+          "patternProperties": {
+            "^A\\d+$": {
+              "pattern": "^[0-9]+:[0-9A-F]+$",
+              "type": "string"
+            }
+          },
+          "title": "Accounts",
+          "type": "object"
+        },
+        "transactions": {
+          "patternProperties": {
+            "^T\\d+$": {
+              "pattern": "^HI-Small:\\d{8}$",
+              "type": "string"
+            }
+          },
+          "title": "Transactions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "accounts",
+        "transactions"
+      ],
+      "title": "CaseAliases",
+      "type": "object"
+    },
+    "ChainCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "chain",
+          "title": "Kind",
+          "type": "string"
+        },
+        "accounts": {
+          "description": "Route in time order",
+          "items": {
+            "pattern": "^A\\d+$",
+            "type": "string"
+          },
+          "minItems": 2,
+          "title": "Accounts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "accounts"
+      ],
+      "title": "ChainCheck",
+      "type": "object"
+    },
+    "Claim": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "cited_tx_ids": {
+          "items": {
+            "pattern": "^HI-Small:\\d{8}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Cited Tx Ids",
+          "type": "array"
+        },
+        "checks": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "amount_range": "#/$defs/AmountRangeCheck",
+                "chain": "#/$defs/ChainCheck",
+                "count": "#/$defs/CountCheck",
+                "cycle": "#/$defs/CycleCheck",
+                "fan_in": "#/$defs/FanInCheck",
+                "fan_out": "#/$defs/FanOutCheck",
+                "involves": "#/$defs/InvolvesCheck",
+                "total": "#/$defs/TotalCheck",
+                "within_hours": "#/$defs/WithinHoursCheck"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/FanOutCheck"
+              },
+              {
+                "$ref": "#/$defs/FanInCheck"
+              },
+              {
+                "$ref": "#/$defs/CycleCheck"
+              },
+              {
+                "$ref": "#/$defs/ChainCheck"
+              },
+              {
+                "$ref": "#/$defs/InvolvesCheck"
+              },
+              {
+                "$ref": "#/$defs/CountCheck"
+              },
+              {
+                "$ref": "#/$defs/TotalCheck"
+              },
+              {
+                "$ref": "#/$defs/AmountRangeCheck"
+              },
+              {
+                "$ref": "#/$defs/WithinHoursCheck"
+              }
+            ]
+          },
+          "title": "Checks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "text",
+        "cited_tx_ids",
+        "checks"
+      ],
+      "title": "Claim",
+      "type": "object"
+    },
+    "CountCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "count",
+          "title": "Kind",
+          "type": "string"
+        },
+        "n": {
+          "description": "Exact number of cited transactions",
+          "minimum": 1,
+          "title": "N",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "n"
+      ],
+      "title": "CountCheck",
+      "type": "object"
+    },
+    "Cycle": {
+      "additionalProperties": false,
+      "properties": {
+        "length": {
+          "minimum": 2,
+          "title": "Length",
+          "type": "integer"
+        },
+        "accounts": {
+          "items": {
+            "pattern": "^[0-9]+:[0-9A-F]+$",
+            "type": "string"
+          },
+          "title": "Accounts",
+          "type": "array"
+        },
+        "tx_ids": {
+          "items": {
+            "pattern": "^HI-Small:\\d{8}$",
+            "type": "string"
+          },
+          "title": "Tx Ids",
+          "type": "array"
+        },
+        "start_ts": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
+          "title": "Start Ts",
+          "type": "string"
+        },
+        "end_ts": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
+          "title": "End Ts",
+          "type": "string"
+        },
+        "repeat_count": {
+          "minimum": 1,
+          "title": "Repeat Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "length",
+        "accounts",
+        "tx_ids",
+        "start_ts",
+        "end_ts",
+        "repeat_count"
+      ],
+      "title": "Cycle",
+      "type": "object"
+    },
+    "CycleCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "cycle",
+          "title": "Kind",
+          "type": "string"
+        },
+        "accounts": {
+          "description": "Route in time order; must end where it starts",
+          "items": {
+            "pattern": "^A\\d+$",
+            "type": "string"
+          },
+          "minItems": 3,
+          "title": "Accounts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "accounts"
+      ],
+      "title": "CycleCheck",
+      "type": "object"
+    },
+    "DroppedClaim": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "cited_tx_ids": {
+          "description": "Real ids, or the alias as written if it was made up",
+          "items": {
+            "type": "string"
+          },
+          "title": "Cited Tx Ids",
+          "type": "array"
+        },
+        "checks": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "amount_range": "#/$defs/AmountRangeCheck",
+                "chain": "#/$defs/ChainCheck",
+                "count": "#/$defs/CountCheck",
+                "cycle": "#/$defs/CycleCheck",
+                "fan_in": "#/$defs/FanInCheck",
+                "fan_out": "#/$defs/FanOutCheck",
+                "involves": "#/$defs/InvolvesCheck",
+                "total": "#/$defs/TotalCheck",
+                "within_hours": "#/$defs/WithinHoursCheck"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/FanOutCheck"
+              },
+              {
+                "$ref": "#/$defs/FanInCheck"
+              },
+              {
+                "$ref": "#/$defs/CycleCheck"
+              },
+              {
+                "$ref": "#/$defs/ChainCheck"
+              },
+              {
+                "$ref": "#/$defs/InvolvesCheck"
+              },
+              {
+                "$ref": "#/$defs/CountCheck"
+              },
+              {
+                "$ref": "#/$defs/TotalCheck"
+              },
+              {
+                "$ref": "#/$defs/AmountRangeCheck"
+              },
+              {
+                "$ref": "#/$defs/WithinHoursCheck"
+              }
+            ]
+          },
+          "title": "Checks",
+          "type": "array"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "text",
+        "cited_tx_ids",
+        "checks",
+        "reasons"
+      ],
+      "title": "DroppedClaim",
+      "type": "object"
+    },
+    "Edge": {
+      "additionalProperties": false,
+      "properties": {
+        "tx_id": {
+          "pattern": "^HI-Small:\\d{8}$",
+          "title": "Tx Id",
+          "type": "string"
+        },
+        "ts": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
+          "title": "Ts",
+          "type": "string"
+        },
+        "src": {
+          "pattern": "^[0-9]+:[0-9A-F]+$",
+          "title": "Src",
+          "type": "string"
+        },
+        "dst": {
+          "pattern": "^[0-9]+:[0-9A-F]+$",
+          "title": "Dst",
+          "type": "string"
+        },
+        "from_bank": {
+          "title": "From Bank",
+          "type": "string"
+        },
+        "to_bank": {
+          "title": "To Bank",
+          "type": "string"
+        },
+        "amount_paid": {
+          "minimum": 0,
+          "title": "Amount Paid",
+          "type": "number"
+        },
+        "payment_currency": {
+          "title": "Payment Currency",
+          "type": "string"
+        },
+        "amount_received": {
+          "minimum": 0,
+          "title": "Amount Received",
+          "type": "number"
+        },
+        "receiving_currency": {
+          "title": "Receiving Currency",
+          "type": "string"
+        },
+        "payment_format": {
+          "title": "Payment Format",
+          "type": "string"
+        },
+        "hop": {
+          "minimum": 0,
+          "title": "Hop",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "tx_id",
+        "ts",
+        "src",
+        "dst",
+        "from_bank",
+        "to_bank",
+        "amount_paid",
+        "payment_currency",
+        "amount_received",
+        "receiving_currency",
+        "payment_format",
+        "hop"
+      ],
+      "title": "Edge",
+      "type": "object"
+    },
+    "FanInCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "fan_in",
+          "title": "Kind",
+          "type": "string"
+        },
+        "account": {
+          "description": "Receiver of every cited transaction",
+          "pattern": "^A\\d+$",
+          "title": "Account",
+          "type": "string"
+        },
+        "senders": {
+          "description": "Exact number of distinct senders among the cited transactions",
+          "minimum": 1,
+          "title": "Senders",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "account",
+        "senders"
+      ],
+      "title": "FanInCheck",
+      "type": "object"
+    },
+    "FanOutCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "fan_out",
+          "title": "Kind",
+          "type": "string"
+        },
+        "account": {
+          "description": "Sender of every cited transaction",
+          "pattern": "^A\\d+$",
+          "title": "Account",
+          "type": "string"
+        },
+        "recipients": {
+          "description": "Exact number of distinct receivers among the cited transactions",
+          "minimum": 1,
+          "title": "Recipients",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "account",
+        "recipients"
+      ],
+      "title": "FanOutCheck",
+      "type": "object"
+    },
+    "InvolvesCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "involves",
+          "title": "Kind",
+          "type": "string"
+        },
+        "account": {
+          "description": "Every cited transaction has this account as sender or receiver",
+          "pattern": "^A\\d+$",
+          "title": "Account",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "account"
+      ],
+      "title": "InvolvesCheck",
+      "type": "object"
+    },
+    "LLMRun": {
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "title": "Agent",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "usage": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Usage",
+          "type": "object"
+        },
+        "tool_calls": {
+          "items": {
+            "$ref": "#/$defs/ToolCallLog"
+          },
+          "title": "Tool Calls",
+          "type": "array"
+        }
+      },
+      "required": [
+        "agent",
+        "model",
+        "usage",
+        "tool_calls"
+      ],
+      "title": "LLMRun",
+      "type": "object"
+    },
+    "Narrative": {
+      "additionalProperties": false,
+      "properties": {
+        "typology": {
+          "enum": [
+            "FAN-OUT",
+            "FAN-IN",
+            "CYCLE",
+            "SCATTER-GATHER",
+            "GATHER-SCATTER",
+            "STACK",
+            "BIPARTITE",
+            "RANDOM",
+            "NONE"
+          ],
+          "title": "Typology",
+          "type": "string"
+        },
+        "suspicious": {
+          "title": "Suspicious",
+          "type": "boolean"
+        },
+        "confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/Claim"
+          },
+          "title": "Claims",
+          "type": "array"
+        }
+      },
+      "required": [
+        "typology",
+        "suspicious",
+        "confidence",
+        "summary",
+        "claims"
+      ],
+      "title": "Narrative",
+      "type": "object"
+    },
+    "Side": {
+      "additionalProperties": false,
+      "properties": {
+        "tx_count": {
+          "minimum": 0,
+          "title": "Tx Count",
+          "type": "integer"
+        },
+        "counterparties": {
+          "minimum": 0,
+          "title": "Counterparties",
+          "type": "integer"
+        },
+        "first_ts": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "First Ts"
+        },
+        "last_ts": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Ts"
+        },
+        "amount_by_currency": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Amount By Currency",
+          "type": "object"
+        }
+      },
+      "required": [
+        "tx_count",
+        "counterparties",
+        "first_ts",
+        "last_ts",
+        "amount_by_currency"
+      ],
+      "title": "Side",
+      "type": "object"
+    },
+    "StructureSignals": {
+      "additionalProperties": false,
+      "properties": {
+        "window": {
+          "$ref": "#/$defs/Window"
+        },
+        "source_account": {
+          "$ref": "#/$defs/AccountSignals"
+        },
+        "destination_account": {
+          "$ref": "#/$defs/AccountSignals"
+        },
+        "pair_history": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "propertyNames": {
+            "enum": [
+              "same_direction_before",
+              "reverse_direction_before"
+            ]
+          },
+          "title": "Pair History",
+          "type": "object"
+        }
+      },
+      "required": [
+        "window",
+        "source_account",
+        "destination_account",
+        "pair_history"
+      ],
+      "title": "StructureSignals",
+      "type": "object"
+    },
+    "Subgraph": {
+      "additionalProperties": false,
+      "properties": {
+        "hops": {
+          "title": "Hops",
+          "type": "integer"
+        },
+        "window": {
+          "$ref": "#/$defs/Window"
+        },
+        "accounts": {
+          "items": {
+            "pattern": "^[0-9]+:[0-9A-F]+$",
+            "type": "string"
+          },
+          "title": "Accounts",
+          "type": "array"
+        },
+        "edges": {
+          "items": {
+            "$ref": "#/$defs/Edge"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "truncated": {
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "hops",
+        "window",
+        "accounts",
+        "edges",
+        "truncated"
+      ],
+      "title": "Subgraph",
+      "type": "object"
+    },
+    "ToolCallLog": {
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        },
+        "args": {
+          "additionalProperties": true,
+          "title": "Args",
+          "type": "object"
+        },
+        "new_transactions": {
+          "default": 0,
+          "title": "New Transactions",
+          "type": "integer"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        }
+      },
+      "required": [
+        "tool",
+        "args"
+      ],
+      "title": "ToolCallLog",
+      "type": "object"
+    },
+    "TotalCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "total",
+          "title": "Kind",
+          "type": "string"
+        },
+        "amount": {
+          "description": "Sum of the cited amounts (1% tolerance)",
+          "exclusiveMinimum": 0,
+          "title": "Amount",
+          "type": "number"
+        },
+        "currency": {
+          "description": "Every cited transaction must be in this currency, e.g. US Dollar",
+          "title": "Currency",
+          "type": "string"
+        },
+        "side": {
+          "default": "paid",
+          "enum": [
+            "paid",
+            "received"
+          ],
+          "title": "Side",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "amount",
+        "currency"
+      ],
+      "title": "TotalCheck",
+      "type": "object"
+    },
+    "Transaction": {
+      "additionalProperties": false,
+      "properties": {
+        "tx_id": {
+          "pattern": "^HI-Small:\\d{8}$",
+          "title": "Tx Id",
+          "type": "string"
+        },
+        "ts": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
+          "title": "Ts",
+          "type": "string"
+        },
+        "src": {
+          "pattern": "^[0-9]+:[0-9A-F]+$",
+          "title": "Src",
+          "type": "string"
+        },
+        "dst": {
+          "pattern": "^[0-9]+:[0-9A-F]+$",
+          "title": "Dst",
+          "type": "string"
+        },
+        "from_bank": {
+          "title": "From Bank",
+          "type": "string"
+        },
+        "to_bank": {
+          "title": "To Bank",
+          "type": "string"
+        },
+        "amount_paid": {
+          "minimum": 0,
+          "title": "Amount Paid",
+          "type": "number"
+        },
+        "payment_currency": {
+          "title": "Payment Currency",
+          "type": "string"
+        },
+        "amount_received": {
+          "minimum": 0,
+          "title": "Amount Received",
+          "type": "number"
+        },
+        "receiving_currency": {
+          "title": "Receiving Currency",
+          "type": "string"
+        },
+        "payment_format": {
+          "title": "Payment Format",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tx_id",
+        "ts",
+        "src",
+        "dst",
+        "from_bank",
+        "to_bank",
+        "amount_paid",
+        "payment_currency",
+        "amount_received",
+        "receiving_currency",
+        "payment_format"
+      ],
+      "title": "Transaction",
+      "type": "object"
+    },
+    "Triage": {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "enum": [
+            "fast_track",
+            "manual_review",
+            "auto_clear"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "reason"
+      ],
+      "title": "Triage",
+      "type": "object"
+    },
+    "Verification": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "verified",
+            "partial",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "typology_supported": {
+          "title": "Typology Supported",
+          "type": "boolean"
+        },
+        "typology_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Typology Reason"
+        },
+        "claims_total": {
+          "title": "Claims Total",
+          "type": "integer"
+        },
+        "claims_passed": {
+          "title": "Claims Passed",
+          "type": "integer"
+        },
+        "dropped_claims": {
+          "items": {
+            "$ref": "#/$defs/DroppedClaim"
+          },
+          "title": "Dropped Claims",
+          "type": "array"
+        },
+        "attempts": {
+          "items": {
+            "$ref": "#/$defs/Attempt"
+          },
+          "title": "Attempts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "typology_supported",
+        "typology_reason",
+        "claims_total",
+        "claims_passed",
+        "dropped_claims",
+        "attempts"
+      ],
+      "title": "Verification",
+      "type": "object"
+    },
+    "Window": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
+          "title": "End",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "Window",
+      "type": "object"
+    },
+    "WithinHoursCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "within_hours",
+          "title": "Kind",
+          "type": "string"
+        },
+        "hours": {
+          "description": "All cited transactions happen within this many hours of each other",
+          "exclusiveMinimum": 0,
+          "title": "Hours",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "hours"
+      ],
+      "title": "WithinHoursCheck",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Evidence for one alert, plus the slots the agent fills in.",
+  "properties": {
+    "alert": {
+      "$ref": "#/$defs/AlertMeta"
+    },
+    "as_of": {
+      "anyOf": [
+        {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "As Of"
+    },
+    "flagged_transaction": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Transaction"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "accounts": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/AccountHistory"
+          },
+          "propertyNames": {
+            "enum": [
+              "source",
+              "destination"
+            ]
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Accounts"
+    },
+    "structure_signals": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StructureSignals"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "cycles_closed_by_flagged": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Cycle"
+      },
+      "title": "Cycles Closed By Flagged",
+      "type": "array"
+    },
+    "subgraph": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Subgraph"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "evidence_tx_ids": {
+      "default": [],
+      "items": {
+        "pattern": "^HI-Small:\\d{8}$",
+        "type": "string"
+      },
+      "title": "Evidence Tx Ids",
+      "type": "array"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error"
+    },
+    "narrative": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Narrative"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "verification": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Verification"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "triage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Triage"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "llm": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LLMRun"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "tool_transactions": {
+      "default": [],
+      "description": "Extra transactions the agent fetched",
+      "items": {
+        "$ref": "#/$defs/Transaction"
+      },
+      "title": "Tool Transactions",
+      "type": "array"
+    },
+    "case_aliases": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CaseAliases"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "alert"
+  ],
+  "title": "AlertReport",
+  "type": "object"
+}

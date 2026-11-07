@@ -3,9 +3,10 @@
 Detect laundering transactions in IBM AML HI-Small with a tabular baseline and a GNN,
 then investigate alerts using an LLM agent backed by transaction evidence.
 
-The `data` branch implements **data preparation and validation**. Model training,
-shared model evaluation and the investigation agent remain assigned to their owners.
-The original model/agent scripts are placeholders, not working implementations yet.
+The `data` branch implements **data preparation and validation**. The `agent` branch
+builds on it with the **investigation agent** (see [Investigation agent](#investigation-agent)).
+Model training and shared model evaluation remain assigned to their owners; those
+scripts are still placeholders.
 
 ## Prepare the data
 
@@ -74,8 +75,9 @@ Amounts retain their native currencies in `amount_paid`/`payment_currency` and
 `amount_received`/`receiving_currency`. No FX source was supplied, so **no `amount_usd`
 is fabricated**. These four CSVs replace the initial placeholder contract for separate
 `transactions.parquet`, `split.parquet` and `features.parquet`; split membership is
-given by each model filename. Downstream prediction files should contain `tx_id, score`
-(Parquet or CSV as agreed by the model owners).
+given by each model filename. Downstream prediction files follow
+[Model prediction files](#model-prediction-files) below (proposed by the agent owner;
+to be confirmed with the model owners).
 
 ### Time and label rules
 
@@ -99,6 +101,71 @@ It also tests same-time exclusion and future invariance. Nine exact duplicate ex
 rows are removed under a documented keep-first assumption; all 5,177 positive labels
 are retained. Benford features are exploratory, not proof of laundering.
 
+## Investigation agent
+
+For each top-K alert, the agent gathers evidence, writes a case with cited transactions,
+has every claim checked by code, and triages the alert:
+
+1. **Evidence**: a label-free DuckDB copy of the transactions (`is_laundering` is never
+   copied in) feeds lookup tools that only return transactions at or before the alert
+   minute. Same-minute transactions count as visible because the data has one-minute
+   resolution; this is the agent's documented investigation cutoff.
+2. **Case**: an LLM agent (LangChain + NUS SoCLaaS, `qwen3.6:35b`) reads a compact case,
+   may call lookup tools within a budget, and submits a report via a tool whose arguments
+   are a Pydantic schema. Each claim cites transactions and carries machine-checkable facts.
+3. **Verification**: plain Python checks every cited id and fact against the data. Failures
+   go back to the agent once; claims that still fail are dropped.
+4. **Triage**: high score + verified → `fast_track`; high score + not verified →
+   `manual_review`; below threshold → `auto_clear`.
+
+The agent and its tools are defined in Markdown files with YAML frontmatter
+(`src/agent/definitions/agents/*.md`, `src/agent/definitions/tools/*.md`): the frontmatter
+holds settings (model, tool list, budgets, argument rules) and the body holds the prompt.
+They are validated with Pydantic when loaded.
+
+### Model prediction files
+
+`outputs/predictions/predictions_<model>.csv`, one row per transaction, every row of
+validation (and test, once, at the end):
+
+| Column | Meaning |
+|---|---|
+| `tx_id` | `tx_id` from the data CSVs, unchanged, e.g. `HI-Small:03970858` |
+| `split` | `validation` or `test` |
+| `score` | probability of laundering in [0, 1]; higher = more suspicious |
+| `predicted_label` | 1 if `score` ≥ the threshold tuned on validation, else 0 |
+| `model_name` | short name, e.g. `xgb`, `gnn` |
+
+GNN predictions must be per transaction (edge), not per account. Check a file before
+handing it over:
+
+```bash
+python scripts/validate_predictions.py outputs/predictions/predictions_xgb.csv
+```
+
+### Run
+
+SoCLaaS settings are read from `~/.config/soclaas/soclaas.env` (`SOCLAAS_BASE_URL`,
+`SOCLAAS_API_KEY`; see `.env.example`). Never commit the key.
+
+```bash
+python scripts/make_standin_alerts.py      # fake alerts until real model files exist
+python scripts/06_run_agent.py --predictions outputs/predictions/predictions_xgb.csv --split validation
+python scripts/07_evaluate_agent.py --cases outputs/narratives/case_reports_xgb.json
+python scripts/show_trace.py --rank 1      # what the agent did on alert #1: each tool, why, what came back
+python scripts/check_pipeline.py           # re-check every input and output contract
+python -m pytest tests                     # offline tests with a scripted fake LLM
+```
+
+`06_run_agent.py` validates the prediction file first and the case reports last
+(schema, no labels, no future data, citations inside the evidence, triage rule, and
+re-verification of every kept claim). JSON Schemas for these contracts are in
+`docs/contracts/` (regenerate with `python -m src.agent.schemas`).
+
+`pattern_labels.csv` is read only by `07_evaluate_agent.py`, the prediction validator's
+optional PR-AUC sanity check, and the stand-in alert generator (which simulates a model).
+The agent itself never reads it.
+
 ## Repository layout
 
 | Location | Purpose |
@@ -108,7 +175,13 @@ are retained. Benford features are exploratory, not proof of laundering.
 | `scripts/02_build_features.py` | Compatibility alias; no duplicated feature logic |
 | `data/raw/` | Local source files, ignored by Git |
 | `data/processed/` | Four regenerated CSVs, ignored by Git |
-| `scripts/03_train_gbt.py`–`06_run_agent.py`, `src/` | Existing placeholders for the remaining team work |
+| `scripts/03_train_gbt.py`–`05_evaluate.py`, `src/models/`, `src/eval/` | Existing placeholders for the remaining team work |
+| `src/agent/` | Investigation agent: store, tools, LangChain loop, verifier, Pydantic contracts |
+| `src/agent/definitions/` | Agent and tool definitions (Markdown + YAML frontmatter) |
+| `scripts/06_run_agent.py`, `07_evaluate_agent.py` | Run the agent; score it against `pattern_labels.csv` |
+| `scripts/validate_predictions.py`, `check_pipeline.py` | Contract checks for model files and agent outputs |
+| `tests/` | Agent tests (offline, fake LLM) |
+| `docs/contracts/` | JSON Schemas for the shared file formats |
 | `outputs/` | Local execution artifacts and future model/agent outputs, ignored by Git |
 
 Do not commit raw/generated data, `.env`, API keys or `kaggle.json`. Share the final
