@@ -1,0 +1,33 @@
+# GNN section (stage 04).
+gnn:
+  data_dir: data/processed
+  out_dir: outputs/gnn
+  cache_dir: outputs/gnn/cache
+  predictions: outputs/predictions/predictions_gnn.parquet
+  explain_out: outputs/agent        # alerts_explained.json
+  defaults:                         # 2 layers and fanout 100-100 follow Multi-GNN (Egressy et al. 2024)
+    hidden: 64
+    layers: 2
+    fanout: [100, 100]
+    batch: 4096
+    epochs: 15
+    patience: 4
+    lr: 0.001
+    dropout: 0.1
+    pos_weight: 6.0                 # cross-entropy weight on the laundering class
+    neg_frac: 0.2                   # share of normal training payments sampled each epoch
+  runs:                             # ablation ladder
+    - {name: gin_plain, model: gin, features: row, ports: false, rmp: false, ego: false, eu: false, batch: 8192}
+    - {name: multigin, model: gin, features: row, batch: 8192}
+    - {name: multigin_hist, model: gin, features: all, batch: 8192}
+    - {name: multigin_causal, model: gin, features: all, causal: true, batch: 8192}
+    - {name: multigin_causal_mega, model: gin, features: all, causal: true, pair_agg: true, batch: 8192}
+    - {name: pna_final, model: pna, features: all, causal: true, pair_agg: true, seeds: [0, 1, 2]}
+  final: pna_final                  # predictions file and explanations come from its best-validation seed
+  explain:
+    split: test
+    n_alerts: 100
+  watchlist:                        # follow-up after confirmed cases (src/models/gnn/watchlist.py)
+    split: test
+    delay_hours: 24                 # watch starts 24 h after the confirmed payment
+    max_prior_payments: 20          # exclude accounts with more earlier payments than this
