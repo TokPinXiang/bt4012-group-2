@@ -1,7 +1,7 @@
 """Train or reload the local LightGBM baseline (owner: Yu Heng).
 
   python scripts/03_train_gbt.py --smoke
-  python scripts/03_train_gbt.py --features all --trials 12
+  python scripts/03_train_gbt.py --features all --trials 30 --publish
   python scripts/03_train_gbt.py --publish-run outputs/gbt/<completed-run>
   python scripts/03_train_gbt.py --predict-run outputs/gbt/<run> --input payments.csv --output scores.parquet
 
@@ -53,7 +53,7 @@ def main():
     ap.add_argument("--run-name", help="unique output folder name (otherwise timestamped)")
     ap.add_argument("--features", choices=["row", "all"], default="all")
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--trials", type=int, default=12)
+    ap.add_argument("--trials", type=int, default=30, help="candidate count (default: 30; at most 2595)")
     ap.add_argument("--max-rounds", type=int, default=1000)
     ap.add_argument("--patience", type=int, default=60)
     ap.add_argument("--threads", type=int, default=4)

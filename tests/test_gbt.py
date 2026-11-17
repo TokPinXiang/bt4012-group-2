@@ -2,6 +2,7 @@
 
 Run: python -m unittest discover -s tests -p test_gbt.py -v
 """
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -15,7 +16,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from src.models.gbt import (
-    TrainConfig, baseline_metrics, check_splits, choose_threshold,
+    MAX_TRIALS, TrainConfig, baseline_metrics, candidate_parameters, check_splits, choose_threshold,
     feature_columns, fit_preprocessor, load_model, load_split, predict,
     train_baseline, transform,
 )
@@ -60,6 +61,34 @@ class BaselineTests(unittest.TestCase):
         self.assertTrue(pd.isna(x.payment_format.iloc[0]))
         self.assertEqual(meta["categories"]["payment_format"], ["ACH", "WIRE"])
         self.assertEqual(future.payment_format.iloc[0], "NEW")
+
+    def test_search_rejects_unreachable_budgets(self):
+        self.assertEqual(MAX_TRIALS, 2595)
+        with self.assertRaisesRegex(ValueError, "search-space limit"):
+            TrainConfig(trials=2596).validate()
+        with self.assertRaisesRegex(ValueError, "2595 unique"):
+            candidate_parameters(1000, 2596, 0)
+        with self.assertRaisesRegex(ValueError, "865 unique"):
+            candidate_parameters(1, 866, 0)
+        for ratio in (0, -1, np.nan, np.inf):
+            with self.subTest(ratio=ratio), self.assertRaises(ValueError):
+                candidate_parameters(ratio, 30, 0)
+        for count in (0, -1, 2.5):
+            with self.subTest(count=count), self.assertRaises(ValueError):
+                candidate_parameters(1000, count, 0)
+
+    def test_balanced_search_exhausts_unique_pool(self):
+        candidates = candidate_parameters(1, 865, 0)
+        unique = {json.dumps(p, sort_keys=True) for p in candidates}
+        self.assertEqual(len(unique), 865)
+        self.assertTrue(all(p["scale_pos_weight"] == 1 for p in candidates))
+
+    def test_reported_search_sequence_is_preserved(self):
+        # Recorded from the original implementation before the bounds fix.
+        # Preserves the 30 candidates used by the report's seed-0 experiment.
+        candidates = candidate_parameters(1243.732142857143, 30, 0)
+        digest = hashlib.sha256(json.dumps(candidates, sort_keys=True).encode()).hexdigest()
+        self.assertEqual(digest, "0e4326c453209658f9f8b81accf0cf7fde3f6d11e6f060e8bf1938b355f21355")
 
     def test_invalid_labels_and_duplicate_ids_rejected(self):
         data = self.make_data()

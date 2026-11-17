@@ -8,6 +8,7 @@ from __future__ import annotations
 import gc
 import importlib.metadata
 import json
+from math import prod
 import platform
 import time
 from dataclasses import asdict, dataclass
@@ -29,6 +30,16 @@ NOT_FEATURES = {
     "dst_account_id", "src_node_id", "dst_node_id", "annotation_status",
 }
 FILES = {"train": "train.csv", "val": "validation.csv", "test": "test.csv"}
+# Insertion order preserves the original seeded random-search sequence.
+SEARCH_SPACE = {
+    "learning_rate": [0.03, 0.05, 0.1],
+    "num_leaves": [15, 31, 63],
+    "min_child_samples": [50, 100, 200, 500],
+    "reg_lambda": [0.0, 1.0, 5.0, 10.0],
+    "reg_alpha": [0.0, 0.1, 1.0],
+    "colsample_bytree": [0.8, 1.0],
+}
+MAX_TRIALS = 3 * (1 + prod(len(values) for values in SEARCH_SPACE.values()))
 
 
 @dataclass
@@ -47,6 +58,8 @@ class TrainConfig:
             raise ValueError("features must be 'row' or 'all'")
         if min(self.trials, self.max_rounds, self.patience, self.threads) < 1:
             raise ValueError("trials, max_rounds, patience and threads must be positive")
+        if self.trials > MAX_TRIALS:
+            raise ValueError(f"trials exceeds the search-space limit of {MAX_TRIALS}")
         if self.shap_rows < 0 or self.seed < 0:
             raise ValueError("shap_rows and seed must be nonnegative")
 
@@ -162,20 +175,25 @@ def baseline_metrics(y, scores, threshold):
 
 def candidate_parameters(ratio, count, seed):
     """First three isolate weighting; later trials vary capacity and regularisation."""
+    if not np.isfinite(ratio) or ratio <= 0:
+        raise ValueError("Training negative/positive ratio must be finite and positive")
+    if not isinstance(count, (int, np.integer)) or count < 1:
+        raise ValueError("Trial count must be a positive integer")
     rng = np.random.default_rng(seed)
-    weights = [1.0, float(np.sqrt(ratio)), float(ratio)]
+    weights = list(dict.fromkeys([1.0, float(np.sqrt(ratio)), float(ratio)]))
+    # Initial candidates use subsample=1; random candidates use subsample=0.8.
+    # The two pools cannot overlap. Balanced data has only one distinct weight.
+    maximum = len(weights) * (1 + prod(len(values) for values in SEARCH_SPACE.values()))
+    if count > maximum:
+        raise ValueError(f"Requested {count} trials, but only {maximum} unique configurations "
+                         f"exist for training class ratio {ratio:g}")
     base = dict(learning_rate=0.05, num_leaves=31, max_depth=-1,
                 min_child_samples=100, reg_lambda=1.0, reg_alpha=0.0,
                 colsample_bytree=1.0, subsample=1.0, subsample_freq=0)
     candidates = [{**base, "scale_pos_weight": w} for w in weights]
     while len(candidates) < count:
-        p = dict(learning_rate=float(rng.choice([0.03, 0.05, 0.1])),
-                 num_leaves=int(rng.choice([15, 31, 63])), max_depth=-1,
-                 min_child_samples=int(rng.choice([50, 100, 200, 500])),
-                 reg_lambda=float(rng.choice([0, 1, 5, 10])),
-                 reg_alpha=float(rng.choice([0, 0.1, 1])),
-                 colsample_bytree=float(rng.choice([0.8, 1.0])),
-                 subsample=0.8, subsample_freq=1,
+        p = {key: rng.choice(values).item() for key, values in SEARCH_SPACE.items()}
+        p.update(max_depth=-1, subsample=0.8, subsample_freq=1,
                  scale_pos_weight=float(rng.choice(weights)))
         if p not in candidates:
             candidates.append(p)
