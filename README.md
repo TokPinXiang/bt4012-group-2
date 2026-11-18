@@ -1,22 +1,41 @@
-# BT4012 Group 2: AML Detection with GNN and a Verified LLM Agent
+# BT4012 Group 2: AML Detection with GNN + Verified LLM Agent
 
-Detect laundering transactions in IBM AML HI-Small with a tabular baseline and a GNN,
-then investigate alerts using an LLM agent backed by transaction evidence.
+Detect money laundering in the IBM AML HI-Small dataset with a tabular baseline and a GNN
+edge classifier, then explain the top alerts with an LLM agent whose evidence is checked
+against the transaction data.
 
-The `data` branch implements **data preparation and validation**. The `agent` branch
-builds on it with the **investigation agent** (see [Investigation agent](#investigation-agent)).
-Model training and shared model evaluation remain assigned to their owners; those
-scripts are still placeholders.
+## Setup
+
+Run commands from the project root (the folder containing `scripts/`). Python 3.10
+was used for the reported baseline experiment and the agent.
+
+```powershell
+python -m venv .venv
+.venv\Scripts\activate          # Windows  (Mac/Linux: source .venv/bin/activate)
+pip install -r requirements.txt
+```
+
+The baseline and saved-prediction evaluation need no Kaggle or LLM credentials.
+Configure credentials separately when downloading raw data or running the agent.
 
 ## Prepare the data
 
-Use Python 3.12. From the repository root:
+Most of the team only needs the processed files: obtain them and place them in
+`data/processed/`:
+
+- `train.csv`, `validation.csv`, `test.csv`: the fixed chronological splits, with
+  `source_row`, `timestamp`, `is_laundering` and transaction/history features.
+- `pattern_labels.csv`: annotations for typology evaluation only.
+
+The baseline and shared evaluator use these CSVs. The GNN additionally supports
+the three-Parquet input contract listed below. Stage 00 is a placeholder; use the
+manual download below.
+
+### Regenerating the processed files
+
+The data notebook was validated on Python 3.12 with its own pinned environment:
 
 ```bash
-python -m venv .venv
-# macOS/Linux
-source .venv/bin/activate
-# Windows alternative: .venv\Scripts\activate
 python -m pip install -r requirements-data.txt
 ```
 
@@ -42,14 +61,9 @@ and run top to bottom. A full run needs several GB of memory and disk space.
 
 `scripts/02_build_features.py` is an alias for the same complete workflow; run **one**
 of the two entry points. No separate feature-engineering implementation is maintained.
-`scripts/00_download_data.py` remains a placeholder; use the manual download above.
 The CLI saves its executed notebook under ignored `outputs/data-preparation/`.
 
-`requirements.txt` includes the data dependencies plus the existing team's model
-and agent dependencies. The data-only installation avoids installing those unrelated
-packages. The model/agent environments have not been validated by this data change.
-
-## Shared data contract
+### Shared data contract
 
 | Output in `data/processed/` | Purpose |
 |---|---|
@@ -65,7 +79,8 @@ target + 11 metadata columns**. Section 9 of the notebook provides the explicit
 `payment_currency`, `receiving_currency`, `payment_format`. Fit their handling on
 training only, or use the chosen model's categorical support.
 
-Use `tx_id` as the common transaction key for predictions, alerts and annotation joins.
+`tx_id` and `source_row` both identify a transaction: `tx_id` is `HI-Small:` followed by
+`source_row` padded to 8 digits (`source_row` 4310127 = `HI-Small:04310127`), and
 `source_row` preserves the original one-based CSV data row. Keep bank/account columns
 as text, including leading zeros. `src_account_id` and `dst_account_id` identify
 bank-account pairs; `src_node_id` and `dst_node_id` are graph indices, not scalar
@@ -73,11 +88,7 @@ predictors. The timestamp is metadata for ordering and causal filtering.
 
 Amounts retain their native currencies in `amount_paid`/`payment_currency` and
 `amount_received`/`receiving_currency`. No FX source was supplied, so **no `amount_usd`
-is fabricated**. These four CSVs replace the initial placeholder contract for separate
-`transactions.parquet`, `split.parquet` and `features.parquet`; split membership is
-given by each model filename. Downstream prediction files follow
-[Model prediction files](#model-prediction-files) below (proposed by the agent owner;
-to be confirmed with the model owners).
+is fabricated**.
 
 ### Time and label rules
 
@@ -100,6 +111,67 @@ separation, annotation coverage, and 3,200 independently recomputed historical v
 It also tests same-time exclusion and future invariance. Nine exact duplicate excess
 rows are removed under a documented keep-first assumption; all 5,177 positive labels
 are retained. Benford features are exploratory, not proof of laundering.
+
+## Train and publish predictions
+
+```powershell
+python scripts/03_train_gbt.py --trials 30 --publish
+python scripts/04_train_gnn.py
+python scripts/04_train_gnn.py --publish
+```
+
+The explicit publish steps put both models' validation/test scores in
+`outputs/predictions/`, alongside their metrics JSONs. They must finish before
+stage 05. GNN training may be run separately in Colab; see
+[the GNN instructions](src/models/gnn/README.md).
+
+The baseline defaults to all transaction/history features, 30 trials, seed 0,
+at most 1,000 boosting rounds and early-stopping patience 60. The script, Python
+configuration and local notebook use the same trial budget. Selection uses
+validation average precision; the maximum-F1 validation threshold is then fixed
+for test. The selected model is not refitted on training plus validation.
+Each run saves its model, preprocessing metadata, configuration, trials, metrics,
+predictions and explanations in a new `outputs/gbt/` folder. The current search
+allows at most 2,595 distinct candidates for imbalanced data (865 for balanced
+classes); larger requests are rejected.
+
+For a quick setup check, use `python scripts/03_train_gbt.py --smoke`.
+Smoke results are not report results and cannot be published. The local
+[baseline notebook](notebooks/baseline_lightgbm.ipynb) starts in smoke mode;
+set `MODE = 'full'` to train on the full splits. To inspect a completed run,
+set `MODE = 'view'` and `VIEW_RUN` to its folder. The notebook creates plots.
+
+To publish an existing baseline run without retraining:
+
+```powershell
+python scripts/03_train_gbt.py --publish-run "outputs/gbt/YOUR_RUN_FOLDER"
+```
+
+If replacing an already published baseline, add `--overwrite-published` to the
+training or publishing command. Original timestamped runs are preserved.
+
+## Evaluate saved predictions
+
+If the team has already trained the models, copy `predictions_gbt.parquet`,
+`predictions_gnn.parquet` and their matching `predictions_*_metrics.json` files
+into `outputs/predictions/`, then run:
+
+```powershell
+python scripts/05_evaluate.py
+```
+
+This stage does not retrain either model. It also discovers predictions directly
+under `outputs/`; if both locations contain the same filename, specify
+`--gbt-predictions` and `--gnn-predictions` explicitly. It checks exact transaction
+coverage and split alignment, verifies each saved validation threshold and
+recomputes metrics against the supplied labels. Saved metrics must match within
+numerical tolerance. Ranking ties use ascending `edge_id` for reproducibility.
+
+Results are saved to a new `outputs/evaluation/comparison_<timestamp>/` folder:
+comparison CSV/JSON, review-budget metrics, typology and scheme detection tables,
+reference checks, input hashes and PNG/PDF figures. Typology recall at k uses the
+full transaction ranking, not a separate queue per typology. If annotations are
+unavailable, explicitly use `--no-typology`. Never tune against test results.
 
 ## Investigation agent
 
@@ -125,23 +197,30 @@ They are validated with Pydantic when loaded.
 
 ### Model prediction files
 
-`outputs/predictions/predictions_<model>.csv`, one row per transaction, every row of
-validation (and test, once, at the end):
+The agent reads the published model files as they are:
+`outputs/predictions/predictions_<model>.parquet` (`edge_id`, `split` = val / test, `score`)
+plus the matching `predictions_<model>_metrics.json`. It converts them on load:
 
-| Column | Meaning |
+| Published | Agent |
 |---|---|
-| `tx_id` | `tx_id` from the data CSVs, unchanged, e.g. `HI-Small:03970858` |
-| `split` | `validation` or `test` |
-| `score` | probability of laundering in [0, 1]; higher = more suspicious |
-| `predicted_label` | 1 if `score` ≥ the threshold tuned on validation, else 0 |
-| `model_name` | short name, e.g. `xgb`, `gnn` |
+| `edge_id` (= `source_row`) | `tx_id` = `HI-Small:` + `edge_id` padded to 8 digits |
+| `split` `val` / `test` | `validation` / `test` |
+| `["val"]["threshold"]` in the metrics JSON | `predicted_label` = 1 if `score` ≥ threshold, else 0 |
+| file name `predictions_gnn` | `model_name` = `gnn` |
 
-GNN predictions must be per transaction (edge), not per account. Check a file before
-handing it over:
+A CSV already in the agent's own columns (`tx_id, split, score, predicted_label,
+model_name`) is also accepted. Check a file before running the agent:
 
 ```bash
-python scripts/validate_predictions.py outputs/predictions/predictions_xgb.csv
+python scripts/validate_predictions.py outputs/predictions/predictions_gnn.parquet
 ```
+
+If the GNN's explanations file (`outputs/agent/alerts_explained.json`, from
+`python scripts/04_train_gnn.py --explain`) exists, GNN alerts it covers also get a
+"model explanation" section: how much of the score came from the payment itself and
+its 1- and 2-hop neighbourhood, the top features, and the neighbouring payments that
+mattered most. Those payments are looked up in the agent's store under the same
+no-future rule and become citable evidence. The explanation is a lead, not proof.
 
 ### Run
 
@@ -150,11 +229,10 @@ SoCLaaS settings are read from `~/.config/soclaas/soclaas.env` (`SOCLAAS_BASE_UR
 
 ```bash
 python scripts/make_standin_alerts.py      # fake alerts until real model files exist
-python scripts/06_run_agent.py --predictions outputs/predictions/predictions_xgb.csv --split validation
-python scripts/07_evaluate_agent.py --cases outputs/narratives/case_reports_xgb.json
+python scripts/06_run_agent.py --predictions outputs/predictions/predictions_gnn.parquet --split validation
+python scripts/07_evaluate_agent.py --cases outputs/narratives/case_reports_gnn.json
 python scripts/show_trace.py --rank 1      # what the agent did on alert #1: each tool, why, what came back
 python scripts/check_pipeline.py           # re-check every input and output contract
-python -m pytest tests                     # offline tests with a scripted fake LLM
 ```
 
 `06_run_agent.py` validates the prediction file first and the case reports last
@@ -166,27 +244,55 @@ re-verification of every kept claim). JSON Schemas for these contracts are in
 optional PR-AUC sanity check, and the stand-in alert generator (which simulates a model).
 The agent itself never reads it.
 
-## Repository layout
+## Checks
 
-| Location | Purpose |
+```powershell
+python -m unittest discover -s tests -v    # baseline and evaluation tests
+python -m pytest tests                     # all tests, including the agent's (offline, fake LLM)
+```
+
+## Layout
+
+| Folder | What goes there | Owner |
+|---|---|---|
+| `notebooks/01_prepare_final_data.ipynb`, `scripts/01_preprocess.py`, `scripts/02_build_features.py` | Cleaning, split, features | A |
+| `src/models/gbt.py`, `src/eval/` | Baseline and shared metrics | B |
+| `src/models/gnn/` | GNN edge classifier | C |
+| `src/agent/` | Agent store, tools, LangChain loop, verifier, Pydantic contracts | D |
+| `src/agent/definitions/` | Agent and tool definitions (Markdown + YAML frontmatter) | D |
+| `scripts/` | Thin entry points, one per stage; agent checks in `validate_predictions.py`, `check_pipeline.py`, `show_trace.py` | |
+| `notebooks/` | Experiment runners, plots and report tables | |
+| `configs/config.yaml` | GNN paths and experiment settings | C |
+| `tests/` | Baseline, evaluation and agent tests | |
+| `docs/contracts/` | JSON Schemas for the agent's file formats | D |
+| `data/raw/`, `data/processed/`, `outputs/` | Local data and run outputs, ignored by Git | |
+
+## Shared file formats
+
+| File | Columns |
 |---|---|
-| `notebooks/01_prepare_final_data.ipynb` | Canonical data implementation and submission notebook; Kang Min Gu |
-| `scripts/01_preprocess.py` | Thin CLI entry point to that notebook |
-| `scripts/02_build_features.py` | Compatibility alias; no duplicated feature logic |
-| `data/raw/` | Local source files, ignored by Git |
-| `data/processed/` | Four regenerated CSVs, ignored by Git |
-| `scripts/03_train_gbt.py`–`05_evaluate.py`, `src/models/`, `src/eval/` | Existing placeholders for the remaining team work |
-| `src/agent/` | Investigation agent: store, tools, LangChain loop, verifier, Pydantic contracts |
-| `src/agent/definitions/` | Agent and tool definitions (Markdown + YAML frontmatter) |
-| `scripts/06_run_agent.py`, `07_evaluate_agent.py` | Run the agent; score it against `pattern_labels.csv` |
-| `scripts/validate_predictions.py`, `check_pipeline.py` | Contract checks for model files and agent outputs |
-| `tests/` | Agent tests (offline, fake LLM) |
-| `docs/contracts/` | JSON Schemas for the shared file formats |
-| `outputs/` | Local execution artifacts and future model/agent outputs, ignored by Git |
+| `data/processed/{train,validation,test}.csv` | source_row, tx_id, timestamp, is_laundering, feature columns and account metadata |
+| `data/processed/pattern_labels.csv` | source_row, tx_id, split, is_laundering, pattern_id, typology, annotation_status and descriptive fields |
+| `data/processed/transactions.parquet` | edge_id, timestamp, from_account, to_account, amount_usd, currency, payment_format, label |
+| `data/processed/split.parquet` | edge_id, split (train / val / test) |
+| `data/processed/features.parquet` | edge_id, feature columns |
+| `outputs/predictions/predictions_<model>.parquet` | edge_id (= source_row), split (val / test), score |
+| `outputs/predictions/predictions_<model>_metrics.json` | per-split metrics; `["val"]["threshold"]` is the alert threshold |
+| `outputs/agent/alerts_explained.json` | GNN explanations of its top alerts, for the agent |
 
-Do not commit raw/generated data, `.env`, API keys or `kaggle.json`. Share the final
-CSV bundle through the team's agreed file-sharing location, or regenerate it from
-the two source files. No team download link has been configured in this branch.
+The three Parquet data files are the GNN's alternative input; the four CSVs are the
+team's delivered data.
+
+## Rules
+
+- Stages talk only through the files above, not through each other's code.
+- Graph and temporal features use past transactions only (no leakage).
+- Ground-truth labels support supervised training and evaluation. Pattern
+  annotations are evaluation-only. The agent's tools must read neither labels
+  nor pattern annotations.
+- Never commit data, outputs, `.env`, API keys or `kaggle.json`. Share the final
+  CSV bundle through the team's agreed file-sharing location, or regenerate it from
+  the two source files.
 
 Data source and license: [IBM AML-Data](https://github.com/IBM/AML-Data) describes the
 synthetic dataset and identifies the data license as CDLA-Sharing-1.0. Notebook code

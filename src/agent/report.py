@@ -16,6 +16,7 @@ import datetime as dt
 import json
 from pathlib import Path
 
+from .explanations import build_model_explanation
 from .store import FORBIDDEN_COLUMNS, TransactionStore
 from .tools import DEFAULT_WINDOW_HOURS, TransactionNotVisible
 
@@ -32,7 +33,9 @@ DEFAULT_CONFIG = {
 }
 
 
-def build_alert_report(store: TransactionStore, alert: dict, config: dict | None = None) -> dict:
+def build_alert_report(store: TransactionStore, alert: dict, config: dict | None = None,
+                       explanation: dict | None = None) -> dict:
+    """Evidence for one alert. `explanation` = the GNN's raw entry for this alert, if any."""
     cfg = {**DEFAULT_CONFIG, **(config or {})}
     meta = {
         "rank": int(alert["rank"]),
@@ -59,7 +62,14 @@ def build_alert_report(store: TransactionStore, alert: dict, config: dict | None
     for hist in (src_hist, dst_hist):
         evidence |= {t["tx_id"] for t in hist["recent_transactions"]}
 
+    extra = {}
+    if explanation is not None:
+        model_explanation = build_model_explanation(case, explanation)
+        evidence |= {t["tx_id"] for t in model_explanation["context_transactions"]}
+        extra["model_explanation"] = model_explanation
+
     return {
+        **extra,
         "alert": meta,
         "as_of": case.flagged["ts"],
         "flagged_transaction": case.flagged,

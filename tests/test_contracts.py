@@ -30,7 +30,7 @@ def test_good_file_passes(tmp_path, db_path):
 
 
 @pytest.mark.parametrize("mutate, expected", [
-    (lambda d: d.drop(columns=["predicted_label"]), "columns"),
+    (lambda d: d.drop(columns=["predicted_label"]), "format"),
     (lambda d: d.assign(tx_id=d.tx_id.str.replace("HI-Small:", "")), "row_schema"),
     (lambda d: d.assign(score=d.score * 10), "row_schema"),
     (lambda d: d.assign(split="valid"), "row_schema"),

@@ -77,6 +77,7 @@ class CaseView:
             return build_case_view(report)
         by_id = {e["tx_id"]: e for e in report["subgraph"]["edges"]}
         by_id.update({e["tx_id"]: e for e in report.get("tool_transactions") or []})
+        by_id.update({e["tx_id"]: e for e in (report.get("model_explanation") or {}).get("context_transactions", [])})
         by_id.setdefault(report["flagged_transaction"]["tx_id"], report["flagged_transaction"])
         v = cls()
         for alias, real in saved["accounts"].items():
@@ -97,6 +98,12 @@ def build_case_view(report: dict) -> CaseView:
     v.register(flagged)
     for e in edges:
         v.register(e)
+    explanation = report.get("model_explanation")
+    outside_window = []  # GNN context payments that the subgraph didn't already contain
+    for e in (explanation or {}).get("context_transactions", []):
+        alias, new = v.register(e)
+        if new:
+            outside_window.append(alias)
 
     sig = report["structure_signals"]
     src_hist, dst_hist = report["accounts"]["source"], report["accounts"]["destination"]
@@ -133,12 +140,63 @@ def build_case_view(report: dict) -> CaseView:
     if not cycles:
         lines.append("none found")
 
+    if explanation:
+        lines += ["", *_explanation_lines(explanation, v, outside_window)]
+
+    window = [a for a in v.tx if a != "T0" and a not in outside_window]
     lines += [
         "",
-        f"TRANSACTIONS IN WINDOW ({len(v.tx)} shown; hop = steps from A1/A2"
+        f"TRANSACTIONS IN WINDOW ({len(window) + 1} shown; hop = steps from A1/A2"
         + ("; busy accounts show only their most recent transactions" if sub["truncated"] else "") + ")",
         "id | time | from -> to | amount | format | hop",
     ]
-    lines += [v.row(a) for a in list(v.tx) if a != "T0"]
+    lines += [v.row(a) for a in window]
     v.text = "\n".join(lines)
     return v
+
+
+NEIGHBOUR_LED_SHARE = 0.5  # a share of the GNN's decision this large says where the reason lies
+HISTORY_PREFIXES = ("src_", "dst_", "pair_", "reverse_pair_")
+
+
+def _feature(f: dict) -> str:
+    """One explained feature. A history feature of 0 means no earlier history of that kind."""
+    if f["value"] is None:
+        value = ""
+    else:
+        value = f" = {f['value']:g}"
+        if f["value"] == 0 and f["feature"].startswith(HISTORY_PREFIXES) and "seconds_since" not in f["feature"]:
+            value += " (0 = no earlier history of this kind)"
+    return f"{f['feature']}{value} (towards {f['pushes_towards']})"
+
+
+def _explanation_lines(ex: dict, v: CaseView, outside_window: list[str]) -> list[str]:
+    """The GNN's account of its own score: a lead for the investigation, not proof."""
+    def pct(x):
+        return f"{x:.0%}"
+
+    side = "above" if ex["above_threshold"] else "below"
+    lines = [
+        "MODEL EXPLANATION (what drove the GNN's score; a lead to check, not evidence of laundering)",
+        f"GNN score {ex['model_score']:.3f}, {side} its alert threshold. Share of the decision: "
+        f"T0 itself {pct(ex['share_own'])}, payments touching A1/A2 {pct(ex['share_1hop'])}, "
+        f"one step further {pct(ex['share_2hop'])}.",
+    ]
+    # Guidance from the GNN owner: a large 1-hop share means the reason lies in the surroundings.
+    if ex["share_1hop"] >= NEIGHBOUR_LED_SHARE:
+        lines.append("Most of the score came from payments touching A1/A2, so T0 on its own will not explain "
+                     "the alert: start with the neighbouring payments listed below.")
+    elif ex["share_own"] >= NEIGHBOUR_LED_SHARE:
+        lines.append("Most of the score came from T0's own features.")
+    if ex["top_features"]:
+        lines.append("T0's features that moved the score most: " + "; ".join(map(_feature, ex["top_features"])) + ".")
+    ctx = ex["context_transactions"]
+    if ctx:
+        lines.append("Neighbouring payments that moved the score most: " + ", ".join(
+            f"{v.tx_alias[c['tx_id']]} (hop {c['hop']}, {pct(c['importance_share'])})" for c in ctx) + ".")
+    if ex["context_not_visible"]:
+        lines.append(f"({ex['context_not_visible']} of the model's context payments are after the alert time "
+                     "or unknown, so they are not shown.)")
+    if outside_window:
+        lines += ["Those not already in the window list below:"] + [v.row(a) for a in outside_window]
+    return lines

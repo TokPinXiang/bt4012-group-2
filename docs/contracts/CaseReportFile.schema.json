@@ -237,6 +237,17 @@
           "title": "Evidence Tx Ids",
           "type": "array"
         },
+        "model_explanation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelExplanation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "error": {
           "anyOf": [
             {
@@ -520,6 +531,91 @@
       "title": "Claim",
       "type": "object"
     },
+    "ContextTransaction": {
+      "additionalProperties": false,
+      "properties": {
+        "tx_id": {
+          "pattern": "^HI-Small:\\d{8}$",
+          "title": "Tx Id",
+          "type": "string"
+        },
+        "ts": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
+          "title": "Ts",
+          "type": "string"
+        },
+        "src": {
+          "pattern": "^[0-9]+:[0-9A-F]+$",
+          "title": "Src",
+          "type": "string"
+        },
+        "dst": {
+          "pattern": "^[0-9]+:[0-9A-F]+$",
+          "title": "Dst",
+          "type": "string"
+        },
+        "from_bank": {
+          "title": "From Bank",
+          "type": "string"
+        },
+        "to_bank": {
+          "title": "To Bank",
+          "type": "string"
+        },
+        "amount_paid": {
+          "minimum": 0,
+          "title": "Amount Paid",
+          "type": "number"
+        },
+        "payment_currency": {
+          "title": "Payment Currency",
+          "type": "string"
+        },
+        "amount_received": {
+          "minimum": 0,
+          "title": "Amount Received",
+          "type": "number"
+        },
+        "receiving_currency": {
+          "title": "Receiving Currency",
+          "type": "string"
+        },
+        "payment_format": {
+          "title": "Payment Format",
+          "type": "string"
+        },
+        "hop": {
+          "description": "1 = touches the alert's accounts, 2 = one step further",
+          "maximum": 2,
+          "minimum": 1,
+          "title": "Hop",
+          "type": "integer"
+        },
+        "importance_share": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Importance Share",
+          "type": "number"
+        }
+      },
+      "required": [
+        "tx_id",
+        "ts",
+        "src",
+        "dst",
+        "from_bank",
+        "to_bank",
+        "amount_paid",
+        "payment_currency",
+        "amount_received",
+        "receiving_currency",
+        "payment_format",
+        "hop",
+        "importance_share"
+      ],
+      "title": "ContextTransaction",
+      "type": "object"
+    },
     "CountCheck": {
       "additionalProperties": false,
       "properties": {
@@ -776,6 +872,47 @@
       "title": "Edge",
       "type": "object"
     },
+    "ExplainedFeature": {
+      "additionalProperties": false,
+      "properties": {
+        "feature": {
+          "description": "column, `column = value` for a category, or out_port / in_port",
+          "title": "Feature",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "pushes_towards": {
+          "enum": [
+            "laundering",
+            "normal"
+          ],
+          "title": "Pushes Towards",
+          "type": "string"
+        },
+        "attribution": {
+          "title": "Attribution",
+          "type": "number"
+        }
+      },
+      "required": [
+        "feature",
+        "value",
+        "pushes_towards",
+        "attribution"
+      ],
+      "title": "ExplainedFeature",
+      "type": "object"
+    },
     "FanInCheck": {
       "additionalProperties": false,
       "properties": {
@@ -889,6 +1026,72 @@
         "tool_calls"
       ],
       "title": "LLMRun",
+      "type": "object"
+    },
+    "ModelExplanation": {
+      "additionalProperties": false,
+      "description": "The scoring model's own account of what drove an alert's score (GNN gradient x input).",
+      "properties": {
+        "source": {
+          "const": "gnn",
+          "title": "Source",
+          "type": "string"
+        },
+        "model_score": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Model Score",
+          "type": "number"
+        },
+        "above_threshold": {
+          "title": "Above Threshold",
+          "type": "boolean"
+        },
+        "share_own": {
+          "title": "Share Own",
+          "type": "number"
+        },
+        "share_1hop": {
+          "title": "Share 1Hop",
+          "type": "number"
+        },
+        "share_2hop": {
+          "title": "Share 2Hop",
+          "type": "number"
+        },
+        "top_features": {
+          "items": {
+            "$ref": "#/$defs/ExplainedFeature"
+          },
+          "title": "Top Features",
+          "type": "array"
+        },
+        "context_transactions": {
+          "items": {
+            "$ref": "#/$defs/ContextTransaction"
+          },
+          "title": "Context Transactions",
+          "type": "array"
+        },
+        "context_not_visible": {
+          "description": "context payments dropped: unknown or after the alert time",
+          "minimum": 0,
+          "title": "Context Not Visible",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source",
+        "model_score",
+        "above_threshold",
+        "share_own",
+        "share_1hop",
+        "share_2hop",
+        "top_features",
+        "context_transactions",
+        "context_not_visible"
+      ],
+      "title": "ModelExplanation",
       "type": "object"
     },
     "Narrative": {
@@ -1085,6 +1288,24 @@
           "additionalProperties": true,
           "title": "Args",
           "type": "object"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The agent's own one-sentence reason for the call",
+          "title": "Reason"
+        },
+        "rows": {
+          "default": 0,
+          "title": "Rows",
+          "type": "integer"
         },
         "new_transactions": {
           "default": 0,

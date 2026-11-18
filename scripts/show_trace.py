@@ -25,6 +25,8 @@ def main():
     ap.add_argument("--rank", type=int, help="alert rank to show in full")
     ap.add_argument("--tx", help="alert tx_id to show in full")
     a = ap.parse_args()
+    if not a.trace.exists():  # a bare file name means one in outputs/narratives/
+        a.trace = ROOT / "outputs/narratives" / a.trace.name
 
     by_alert = defaultdict(list)
     for e in read_traces(a.trace):

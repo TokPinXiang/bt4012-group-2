@@ -24,6 +24,12 @@ How to investigate:
   `reason`: one sentence on why you are calling it and what you expect to find.
 - A1 and A2 are different accounts unless the row says "(self-transfer)". "paid X, received Y" means
   a cross-currency payment between two accounts, not a conversion inside one account.
+- If the case has a MODEL EXPLANATION section, it shows which features and neighbouring payments
+  drove the GNN's score. Use it to decide where to look, not as proof: the model can be wrong, and
+  every claim must still rest on the transactions you cite. When most of the score came from payments
+  touching A1/A2, start with the neighbouring payments it lists (e.g. many similar payments into one
+  receiver from different senders is a fan-in). A history feature of 0 means no earlier history of
+  that kind, e.g. the sender has never paid in this currency before.
 - You only see activity up to the alert time, so a scheme may be unfinished. Name the scheme that best
   fits what is visible (e.g. a scatter-gather seen half-way looks like a fan-out).
 - Signs of laundering: a short burst of transfers among accounts with little other history; money

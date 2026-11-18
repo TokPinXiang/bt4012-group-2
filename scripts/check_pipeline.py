@@ -35,7 +35,8 @@ def main():
         ok = False
 
     print("2. Prediction files")
-    preds = sorted((ROOT / "outputs/predictions").glob("predictions_*.csv"))
+    folder = ROOT / "outputs/predictions"
+    preds = sorted([*folder.glob("predictions_*.csv"), *folder.glob("predictions_*.parquet")])
     for p in preds:
         rep = validate_predictions(p, db, find_data_dir(ROOT) / "pattern_labels.csv")
         print(rep.render(), end="\n\n")

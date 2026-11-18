@@ -1,6 +1,6 @@
 """Contract checks at the pipeline's boundaries.
 
-validate_predictions   - a predictions_<model>.csv from Member 2 or 3, before the agent uses it
+validate_predictions   - a model prediction file (team Parquet or agent CSV), before the agent uses it
 validate_case_reports  - the agent's own output, before anyone relies on it
 
 Both return a CheckReport: a list of errors (must fix) and warnings (look into).
@@ -15,13 +15,13 @@ from typing import Literal
 import duckdb
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel, TypeAdapter, ValidationError
+from pydantic import BaseModel, ValidationError
 
-from .alerts import PREDICTION_COLUMNS
+from .alerts import PredictionFormatError, read_predictions
 from .case_view import CaseView
 from .investigator import triage
 from .report import LLM_FIELDS, assert_no_label_fields
-from .schemas import CaseReportFile, LLMClaim, PredictionRow
+from .schemas import TX_ID_PATTERN, CaseReportFile, LLMClaim, PredictionRow
 from .verifier import verify_claim
 
 MAX_EXAMPLES = 5
@@ -63,32 +63,48 @@ class CheckReport(BaseModel):
 
 # --------------------------------------------------------------------------- predictions
 
-def validate_predictions(path: Path, db_path: Path, labels_path: Path | None = None) -> CheckReport:
-    """Check a model's prediction file against the shared contract and the data."""
+def _row_problems(df: pd.DataFrame) -> pd.Series:
+    """True for rows that break PredictionRow. Vectorised, since a full split is ~760K rows."""
+    score = pd.to_numeric(df["score"], errors="coerce")
+    ok = (df["tx_id"].astype(str).str.fullmatch(TX_ID_PATTERN.strip("^$"))
+          & df["split"].isin(["train", "validation", "test"])
+          & score.between(0, 1) & np.isfinite(score)
+          & df["predicted_label"].isin([0, 1])
+          & df["model_name"].astype(str).str.fullmatch(r"[A-Za-z0-9_\-]{1,40}"))
+    return ~ok.fillna(False)
+
+
+def validate_predictions(path: Path, db_path: Path, labels_path: Path | None = None,
+                         threshold: float | None = None) -> CheckReport:
+    """Check a model's prediction file (team Parquet + metrics JSON, or agent CSV) against the contract."""
     rep = CheckReport(target=str(path))
     try:
-        df = pd.read_csv(path, dtype={"tx_id": str, "split": str, "model_name": str})
+        df, info = read_predictions(path, threshold)
+    except PredictionFormatError as exc:
+        rep.error("format", str(exc))
+        return rep
     except Exception as exc:
-        rep.error("readable", f"could not read CSV: {exc}")
+        rep.error("readable", f"could not read {Path(path).name}: {exc}")
         return rep
 
-    missing = [c for c in PREDICTION_COLUMNS if c not in df.columns]
-    if missing:
-        rep.error("columns", f"missing columns {missing}; expected {PREDICTION_COLUMNS}")
-        return rep
-    extra = [c for c in df.columns if c not in PREDICTION_COLUMNS]
-    if extra:
-        rep.warn("columns", f"extra columns are ignored: {extra}")
-    df = df[PREDICTION_COLUMNS]
+    rep.stats["format"] = ("team (edge_id, split, score) converted to the agent's columns"
+                           if info["format"] == "team" else "agent (tx_id, split, score, predicted_label, model_name)")
+    if info["format"] == "team":
+        rep.stats["threshold"] = f"{info['threshold']:.6g} from {info['threshold_source']}"
+    if info["extra_columns"]:
+        rep.warn("columns", f"extra columns are ignored: {info['extra_columns']}")
     rep.stats["rows"] = len(df)
 
-    # 1. Row schema (types, ranges, id format) via Pydantic.
-    try:
-        TypeAdapter(list[PredictionRow]).validate_python(df.replace({np.nan: None}).to_dict("records"))
-    except ValidationError as exc:
-        errs = exc.errors()
-        rep.error("row_schema", f"{len(errs)} invalid values",
-                  [f"row {e['loc'][0] + 2}, {e['loc'][-1]}: {e['msg']} (got {e.get('input')!r})" for e in errs])
+    # 1. Row schema (types, ranges, id format): fast checks, worded by PredictionRow for the first bad rows.
+    bad = _row_problems(df)
+    if bad.any():
+        examples = []
+        for i, row in df[bad].head(MAX_EXAMPLES).iterrows():
+            try:
+                PredictionRow.model_validate(row.replace({np.nan: None}).to_dict())
+            except ValidationError as exc:
+                examples += [f"row {i + 1}, {e['loc'][-1]}: {e['msg']} (got {e.get('input')!r})" for e in exc.errors()]
+        rep.error("row_schema", f"{int(bad.sum()):,} rows have invalid values", examples)
         return rep  # later checks assume valid rows
 
     # 2. One model per file, no duplicate transactions.
@@ -144,7 +160,7 @@ def validate_predictions(path: Path, db_path: Path, labels_path: Path | None = N
             rep.warn("flag_rate", f"{split}: nothing is flagged, so every alert will be auto-cleared")
         elif rate > 0.05:
             rep.warn("flag_rate", f"{split}: {rate:.1%} flagged, but only ~0.1% of transactions are laundering")
-        if g["score"].nunique() == 1:
+        if len(g) > 1 and g["score"].nunique() == 1:
             rep.error("constant_score", f"{split}: every score is identical")
 
     # 6. Optional sanity check against labels: too-good-to-be-true scores usually mean leakage.
@@ -197,7 +213,8 @@ def validate_case_reports(path: Path, predictions_path: Path | None = None) -> C
             continue
 
         as_of = dt.datetime.fromisoformat(r["as_of"])
-        evidence_txs = r["subgraph"]["edges"] + (r.get("tool_transactions") or [])
+        evidence_txs = (r["subgraph"]["edges"] + (r.get("tool_transactions") or [])
+                        + (r.get("model_explanation") or {}).get("context_transactions", []))
         future += [f"{tx}: {e['tx_id']} at {e['ts']}" for e in evidence_txs
                    if dt.datetime.fromisoformat(e["ts"]) > as_of]
         future += [f"{tx}: {e['tx_id']} at {e['ts']}" for side in r["accounts"].values()
@@ -243,13 +260,13 @@ def validate_case_reports(path: Path, predictions_path: Path | None = None) -> C
     # Cross-check against the prediction file the run says it used.
     pred_path = Path(predictions_path or payload.source_predictions)
     if pred_path.exists():
-        preds = pd.read_csv(pred_path, dtype={"tx_id": str})
-        top = preds.sort_values(["score", "tx_id"], ascending=[False, True])
-        ranks = {t: i + 1 for i, t in enumerate(top["tx_id"])}
-        mismatched = [f"{r['alert']['tx_id']}: rank {r['alert']['rank']} vs {ranks.get(r['alert']['tx_id'])}"
-                      for r in alerts if ranks.get(r["alert"]["tx_id"]) is None]
-        if mismatched:
-            rep.error("from_predictions", f"{len(mismatched)} alerts are not in {pred_path.name}", mismatched)
+        try:
+            scored = set(read_predictions(pred_path)[0]["tx_id"])
+            missing = [r["alert"]["tx_id"] for r in alerts if r["alert"]["tx_id"] not in scored]
+            if missing:
+                rep.error("from_predictions", f"{len(missing)} alerts are not in {pred_path.name}", missing)
+        except PredictionFormatError as exc:
+            rep.warn("from_predictions", f"could not re-read {pred_path.name}: {exc}")
     else:
         rep.warn("from_predictions", f"{pred_path} not found; skipped the cross-check")
 

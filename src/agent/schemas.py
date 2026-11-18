@@ -120,6 +120,32 @@ class Cycle(Strict):
     repeat_count: int = Field(ge=1)
 
 
+class ExplainedFeature(Strict):
+    feature: str = Field(description="column, `column = value` for a category, or out_port / in_port")
+    value: float | None
+    pushes_towards: Literal["laundering", "normal"]
+    attribution: float
+
+
+class ContextTransaction(Transaction):
+    hop: int = Field(ge=1, le=2, description="1 = touches the alert's accounts, 2 = one step further")
+    importance_share: float = Field(ge=0, le=1)
+
+
+class ModelExplanation(Strict):
+    """The scoring model's own account of what drove an alert's score (GNN gradient x input)."""
+
+    source: Literal["gnn"]
+    model_score: float = Field(ge=0, le=1)
+    above_threshold: bool
+    share_own: float
+    share_1hop: float
+    share_2hop: float
+    top_features: list[ExplainedFeature]
+    context_transactions: list[ContextTransaction]
+    context_not_visible: int = Field(ge=0, description="context payments dropped: unknown or after the alert time")
+
+
 class AlertMeta(Strict):
     rank: int = Field(ge=1)
     tx_id: TxId
@@ -281,6 +307,7 @@ class AlertReport(Strict):
     cycles_closed_by_flagged: list[Cycle] = []
     subgraph: Subgraph | None = None
     evidence_tx_ids: list[TxId] = []
+    model_explanation: ModelExplanation | None = None
     error: str | None = None
     # Filled by the agent.
     narrative: Narrative | None = None
