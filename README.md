@@ -228,12 +228,44 @@ SoCLaaS settings are read from `~/.config/soclaas/soclaas.env` (`SOCLAAS_BASE_UR
 `SOCLAAS_API_KEY`; see `.env.example`). Never commit the key.
 
 ```bash
-python scripts/make_standin_alerts.py      # fake alerts until real model files exist
 python scripts/06_run_agent.py --predictions outputs/predictions/predictions_gnn.parquet --split validation
-python scripts/07_evaluate_agent.py --cases outputs/narratives/case_reports_gnn.json
-python scripts/show_trace.py --rank 1      # what the agent did on alert #1: each tool, why, what came back
+python scripts/07_evaluate_agent.py --cases outputs/narratives/case_reports_gnn_validation_top.json
+python scripts/show_trace.py --trace trace_gnn_validation_top.jsonl --rank 1   # each tool, why, what came back
 python scripts/check_pipeline.py           # re-check every input and output contract
 ```
+
+Main options: `--top-k` (alerts to investigate, default 50), `--split validation|test`,
+`--select top|sample` (the highest-scored alerts, or a seeded random sample of all alerts
+above the threshold, seed `--sample-seed`, default 4012), `--trace` (print each step live)
+and `--skip-llm` (build the evidence only). With `--split`, outputs are named
+`case_reports_<model>_<split>_<select>.json`, with a matching `trace_*.jsonl`;
+`07_evaluate_agent.py` writes `agent_eval_*.json` next to them. Without real model files,
+`python scripts/make_standin_alerts.py` writes stand-in alerts for testing.
+
+### Reproduce the reported agent results
+
+The three runs in the report's agent results table (50 alerts each). Settings were fixed
+on validation before the test run.
+
+```bash
+# 1. LightGBM, top 50 validation alerts
+python scripts/06_run_agent.py --predictions outputs/predictions/predictions_gbt.parquet --split validation
+python scripts/07_evaluate_agent.py --cases outputs/narratives/case_reports_gbt_validation_top.json
+
+# 2. GNN, random sample of 50 validation alerts above the threshold
+python scripts/06_run_agent.py --predictions outputs/predictions/predictions_gnn.parquet --split validation --select sample
+python scripts/07_evaluate_agent.py --cases outputs/narratives/case_reports_gnn_validation_sample.json
+
+# 3. GNN, top 50 test alerts (final result, run once)
+python scripts/06_run_agent.py --predictions outputs/predictions/predictions_gnn.parquet --split test
+python scripts/07_evaluate_agent.py --cases outputs/narratives/case_reports_gnn_test_top.json
+```
+
+The model runs at temperature 0 and its replies are cached in
+`outputs/narratives/llm_cache/`, so re-running on the same machine reproduces the same
+reports at no cost. The cache is not committed, so a fresh clone calls SoCLaaS again
+(about 10 to 12 minutes per run); add `--no-cache` to force fresh calls. GNN runs pick up
+`outputs/agent/alerts_explained.json` automatically when it exists.
 
 `06_run_agent.py` validates the prediction file first and the case reports last
 (schema, no labels, no future data, citations inside the evidence, triage rule, and
